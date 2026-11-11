@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import api, { getErrorMessage } from '../services/api';
 
 function useAdminData(path) {
@@ -36,7 +36,7 @@ export function AdminOverviewPage() {
   </>;
 }
 
-const emptyProduct = { name: '', categoryId: '', description: '', price: '', stock: '0', isCustomizable: false, isActive: true };
+const emptyProduct = { name: '', categoryId: '', description: '', price: '', offerPercentage: '0', stock: '0', isCustomizable: false, isActive: true };
 
 export function AdminProductsPage() {
   const { data, error, loading, reload, setError } = useAdminData('/admin/products');
@@ -49,21 +49,29 @@ export function AdminProductsPage() {
   const [deletingImageId, setDeletingImageId] = useState(null);
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  const offerInputRef = useRef(null);
   const products = data?.products || [];
   const categories = categoryState.data?.categories || [];
   const edit = (product) => {
     setEditing(product.id);
     setFormOpen(true);
-    setForm({ name: product.name, categoryId: product.category_id || '', description: product.description, price: product.price, stock: product.stock, isCustomizable: product.is_customizable, isActive: product.is_active });
+    setForm({ name: product.name, categoryId: product.category_id || '', description: product.description, price: product.price, offerPercentage: String(product.offer_percentage || 0), stock: product.stock, isCustomizable: product.is_customizable, isActive: product.is_active });
     setFiles([]);
     setExistingImages(product.images || []);
     setNotice('');
+  };
+  const editOffer = (product) => {
+    edit(product);
+    window.setTimeout(() => {
+      offerInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      offerInputRef.current?.focus();
+    }, 0);
   };
   const reset = () => { setForm(emptyProduct); setEditing(null); setFiles([]); setExistingImages([]); setFormOpen(false); };
   const submit = async (event) => {
     event.preventDefault(); setBusy(true); setError(''); setNotice('');
     try {
-      const payload = { ...form, categoryId: form.categoryId ? Number(form.categoryId) : null, price: Number(form.price), stock: Number(form.stock) };
+      const payload = { ...form, categoryId: form.categoryId ? Number(form.categoryId) : null, price: Number(form.price), offerPercentage: Number(form.offerPercentage), stock: Number(form.stock) };
       const response = editing ? await api.patch(`/admin/products/${editing}`, payload) : await api.post('/admin/products', payload);
       const product = response.data.product;
       if (files.length) {
@@ -96,10 +104,10 @@ export function AdminProductsPage() {
   };
   return <><div className="admin-page-heading"><div><p className="eyebrow">YOUR COLLECTION</p><h1>Products</h1></div><div className="admin-product-heading-actions"><span>{products.length} total</span><button type="button" className="button button-dark" aria-expanded={formOpen} aria-controls="admin-product-form" onClick={() => { if (formOpen) reset(); else setFormOpen(true); }}>{formOpen ? 'Close form' : 'Add product'} <i className={`bi ${formOpen ? 'bi-x-lg' : 'bi-plus-lg'}`} /></button></div></div><AdminFeedback error={error || categoryState.error} notice={notice} />
     {formOpen && <form id="admin-product-form" className="admin-form-card" onSubmit={submit}><div className="admin-card-heading"><h3>{editing ? 'Edit this keepsake' : 'Add something lovely'}</h3>{editing && <button type="button" className="text-button" onClick={reset}>Cancel edit</button>}</div>
-      <div className="admin-product-form"><label>Product name<input required minLength="2" maxLength="180" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label><label>Occasion<select value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}><option value="">Choose category</option>{categories.map((category) => <option value={category.id} key={category.id}>{category.name}</option>)}</select></label><label>Price (₹)<input required type="number" min="0" step="0.01" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} /></label><label>Available stock<input required type="number" min="0" step="1" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} /></label><label className="admin-form-span">Description<textarea required minLength="10" maxLength="5000" rows="3" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></label>{editing && existingImages.length > 0 && <div className="admin-form-span"><span className="admin-image-label">Current product images</span><div className="admin-image-list">{existingImages.map((image) => <div className="admin-image-item" key={image.id}><img src={image.url} alt={image.alt_text || form.name} /><button type="button" className="danger-link" disabled={deletingImageId === image.id} onClick={() => removeImage(image)}>{deletingImageId === image.id ? 'Deleting…' : 'Delete image'} <i className="bi bi-trash" /></button></div>)}</div></div>}<label className="admin-form-span">Product images <span className="optional">(up to 5, max 5 MB each)</span><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={(e) => setFiles(e.target.files)} /></label><label className="admin-check"><input type="checkbox" checked={form.isCustomizable} onChange={(e) => setForm({ ...form, isCustomizable: e.target.checked })} /> Supports printed names / gift messages</label>{editing && <label className="admin-check"><input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} /> Visible in the storefront</label>}</div>
+      <div className="admin-product-form"><label>Product name<input required minLength="2" maxLength="180" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label><label>Occasion<select value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}><option value="">Choose category</option>{categories.map((category) => <option value={category.id} key={category.id}>{category.name}</option>)}</select></label><label>Price (₹)<input required type="number" min="0" step="0.01" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} /></label><label className="admin-offer-field">Offer percentage<input ref={offerInputRef} required type="number" min="0" max="100" step="1" value={form.offerPercentage} onChange={(e) => setForm({ ...form, offerPercentage: e.target.value })} /><span className="optional">Set to 0 to remove the offer.</span></label><label>Available stock<input required type="number" min="0" step="1" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} /></label><label className="admin-form-span">Description<textarea required minLength="10" maxLength="5000" rows="3" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></label>{editing && existingImages.length > 0 && <div className="admin-form-span"><span className="admin-image-label">Current product images</span><div className="admin-image-list">{existingImages.map((image) => <div className="admin-image-item" key={image.id}><img src={image.url} alt={image.alt_text || form.name} /><button type="button" className="danger-link" disabled={deletingImageId === image.id} onClick={() => removeImage(image)}>{deletingImageId === image.id ? 'Deleting…' : 'Delete image'} <i className="bi bi-trash" /></button></div>)}</div></div>}<label className="admin-form-span">Product images <span className="optional">(up to 5, max 5 MB each)</span><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={(e) => setFiles(e.target.files)} /></label><label className="admin-check"><input type="checkbox" checked={form.isCustomizable} onChange={(e) => setForm({ ...form, isCustomizable: e.target.checked })} /> Supports printed names / gift messages</label>{editing && <label className="admin-check"><input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} /> Visible in the storefront</label>}</div>
       <button className="button button-dark" disabled={busy}>{busy ? 'Saving...' : editing ? 'Save changes' : 'Add product'} <i className="bi bi-arrow-right" /></button>
     </form>}
-    <div className="admin-section-card"><div className="admin-card-heading"><h3>All products</h3></div>{loading ? <p className="loading-copy">Loading products...</p> : products.length ? <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Product</th><th>Occasion</th><th>Price</th><th>Stock</th><th>Visibility</th><th>Actions</th></tr></thead><tbody>{products.map((product) => <tr key={product.id}><td>{product.name}{product.is_customizable && <small>Personalizable</small>}</td><td>{product.category_name || '—'}</td><td>₹{Number(product.price).toLocaleString('en-IN')}</td><td>{product.stock}</td><td><span className={`status-pill ${product.is_active ? 'status-delivered' : 'status-cancelled'}`}>{product.is_active ? 'Active' : 'Hidden'}</span></td><td className="table-actions"><button onClick={() => edit(product)}>Edit</button><button className="danger-link" onClick={() => remove(product)}>Remove</button></td></tr>)}</tbody></table></div> : <div className="admin-empty">No products yet. Add your first keepsake above.</div>}</div>
+    <div className="admin-section-card"><div className="admin-card-heading"><h3>All products</h3></div>{loading ? <p className="loading-copy">Loading products...</p> : products.length ? <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Product</th><th>Occasion</th><th>Price</th><th>Offer</th><th>Stock</th><th>Visibility</th><th>Actions</th></tr></thead><tbody>{products.map((product) => <tr key={product.id}><td>{product.name}{product.is_customizable && <small>Personalizable</small>}</td><td>{product.category_name || '—'}</td><td>₹{Number(product.price).toLocaleString('en-IN')}</td><td>{product.offer_percentage > 0 ? `${product.offer_percentage}% OFF` : '—'}</td><td>{product.stock}</td><td><span className={`status-pill ${product.is_active ? 'status-delivered' : 'status-cancelled'}`}>{product.is_active ? 'Active' : 'Hidden'}</span></td><td className="table-actions"><button onClick={() => edit(product)}>Edit</button><button onClick={() => editOffer(product)}>{product.offer_percentage > 0 ? 'Edit offer' : 'Offer'}</button><button className="danger-link" onClick={() => remove(product)}>Remove</button></td></tr>)}</tbody></table></div> : <div className="admin-empty">No products yet. Add your first keepsake above.</div>}</div>
   </>;
 }
 

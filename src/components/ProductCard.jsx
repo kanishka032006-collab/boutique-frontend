@@ -44,13 +44,17 @@ export default function ProductCard({ product, onAdd, onBuy, showDetailsButton =
           <div className="product-image-placeholder"><span>V</span><small>VEDHIKA BRAND</small></div>
         )}
         {product.is_customizable && <span className="product-tag">Personalizable</span>}
+        {product.offer_percentage > 0 && <span className="product-offer-badge">{product.offer_percentage}% OFF</span>}
       </Link>
       <div className="product-card-body">
         <p className="eyebrow">{product.category_name || 'VEDHIKA BRAND COLLECTION'}</p>
         <Link to={`/products/${product.slug}`} className="product-title">{product.name}</Link>
         <p className="product-description">{product.description}</p>
         <div className="product-card-bottom">
-          <strong>₹{Number(product.price).toLocaleString('en-IN')}</strong>
+          <div className="product-price">
+            <strong>₹{Number(product.final_price ?? product.price).toLocaleString('en-IN')}</strong>
+            {product.offer_percentage > 0 && <del>₹{Number(product.price).toLocaleString('en-IN')}</del>}
+          </div>
           <span className={`stock-label ${product.stock < 1 ? 'stock-empty' : ''}`}>{product.stock > 0 ? `${product.stock} available` : 'Sold out'}</span>
           <button className={`icon-button wishlist-button ${saved ? 'is-saved' : ''}`} aria-label={saved ? `Remove ${product.name} from wishlist` : `Add ${product.name} to wishlist`} aria-pressed={saved} onClick={toggleWishlist}>
             <i className={`bi ${saved ? 'bi-heart-fill' : 'bi-heart'}`} />
